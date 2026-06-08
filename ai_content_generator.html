@@ -23,6 +23,7 @@
   <button onclick="showPage('templates',this)"><i class="ti ti-layout-grid" aria-hidden="true"></i> Modèles</button>
   <button onclick="showPage('profile',this)"><i class="ti ti-user-circle" aria-hidden="true"></i> Profil</button>
   <button onclick="showPage('saved',this)"><i class="ti ti-bookmark" aria-hidden="true"></i> Enregistrés</button>
+  <button onclick="showPage('recommandations',this)"><i class="ti ti-books" aria-hidden="true"></i> Recommandations</button>
 </nav>
 
 <!-- ── GÉNÉRATION ── -->
@@ -167,6 +168,61 @@
       <button class="btn-sm" style="margin-left:auto" onclick="clearSaved()"><i class="ti ti-trash" aria-hidden="true"></i> Tout effacer</button>
     </div>
     <div id="saved-list"><div class="empty-state"><i class="ti ti-bookmark" aria-hidden="true"></i>Aucun contenu enregistré.</div></div>
+  </div>
+</div>
+<!-- ── RECOMMANDATIONS ── -->
+<div id="page-recommandations" class="page">
+  <div class="card">
+    <div class="card-title"><i class="ti ti-user-circle" aria-hidden="true"></i> Profil de l'utilisateur</div>
+    <p style="font-size:12px;color:var(--color-text-secondary);margin-bottom:12px">Renseignez votre profil pour obtenir des recommandations de livres personnalisées basées sur la similarité entre utilisateurs.</p>
+    <div class="profile-grid">
+      <div class="form-row"><label for="rec-age">Âge</label><input id="rec-age" type="number" min="18" max="99" placeholder="Ex: 34"></div>
+      <div class="form-row"><label for="rec-gender">Genre</label>
+        <select id="rec-gender">
+          <option value="Male">Homme</option>
+          <option value="Female">Femme</option>
+          <option value="Other">Autre</option>
+        </select>
+      </div>
+      <div class="form-row"><label for="rec-metric">Méthode de similarité</label>
+        <select id="rec-metric">
+          <option value="cosine">Similarité cosinus</option>
+          <option value="euclidean">Distance euclidienne</option>
+        </select>
+      </div>
+      <div class="form-row"><label for="rec-num">Nombre de suggestions</label>
+        <select id="rec-num">
+          <option value="3">3</option>
+          <option value="5" selected>5</option>
+          <option value="8">8</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <label>Centres d'intérêt</label>
+      <div class="tone-grid" id="rec-interests-grid" style="flex-wrap:wrap;gap:6px;display:flex">
+        <!-- populated by JS -->
+      </div>
+    </div>
+    <button class="btn-gen" onclick="generateRecommendations()"><i class="ti ti-sparkles" aria-hidden="true"></i> Générer mes recommandations</button>
+  </div>
+
+  <div class="two-col">
+    <div class="card" id="rec-personal-card" style="display:none">
+      <div class="card-title"><i class="ti ti-star" aria-hidden="true"></i> Suggestions personnalisées</div>
+      <div id="rec-personal-list"></div>
+    </div>
+    <div class="card" id="rec-similar-card" style="display:none">
+      <div class="card-title"><i class="ti ti-users" aria-hidden="true"></i> Basées sur des profils similaires</div>
+      <div id="rec-similar-list"></div>
+      <div id="rec-similar-users" style="margin-top:10px"></div>
+    </div>
+  </div>
+
+  <div class="card" id="rec-stats-card" style="display:none">
+    <div class="card-title"><i class="ti ti-chart-bar" aria-hidden="true"></i> Analyse de votre profil</div>
+    <div id="rec-stats-content"></div>
+    <canvas id="rec-chart" height="120" style="margin-top:12px"></canvas>
   </div>
 </div>
 </div>
@@ -434,4 +490,252 @@ function useTpl(){
 }
 
 renderTemplates();
+
+/* ──────────────────────────────────────────────
+   MOTEUR DE RECOMMANDATION (porté depuis le notebook)
+   Inspiré des méthodes :
+   - RecommendationEngine._create_user_interest_vectors()
+   - RecommendationEngine.get_personalized_suggestions()
+   - RecommendationEngine.find_similar_users()  [cosinus & euclidien]
+   - RecommendationEngine.get_recommendations_from_similar_users()
+────────────────────────────────────────────── */
+
+const INTERESTS_CATEGORIES = [
+  'Fiction','Science-Fiction','Fantasy','Romance','Thriller',
+  'Biographie','Histoire','Science','Technologie','Cuisine',
+  'Voyage','Développement Personnel','Poésie','Art','Jeunesse'
+];
+
+// ── Génère la population synthétique (100 utilisateurs) ──
+function generateSyntheticUsers(n=100){
+  const genders=['Male','Female','Other'];
+  const locations=['Paris','Lyon','Marseille','Toulouse','Nice'];
+  const activityTypes=['view','like','share','purchase','skip'];
+  const users=[];
+  for(let i=0;i<n;i++){
+    const numInterests=1+Math.floor(Math.random()*5);
+    const shuffled=[...INTERESTS_CATEGORIES].sort(()=>Math.random()-0.5);
+    users.push({
+      id:`User_${i+1}`,
+      age:18+Math.floor(Math.random()*47),
+      gender:genders[Math.floor(Math.random()*3)],
+      location:locations[Math.floor(Math.random()*5)],
+      interests:shuffled.slice(0,numInterests)
+    });
+  }
+  // Logs d'activité synthétiques
+  const logs=[];
+  for(let i=0;i<1000;i++){
+    const u=users[Math.floor(Math.random()*n)];
+    const rnd=Math.random();
+    let act='view';
+    if(rnd>0.9) act='skip';
+    else if(rnd>0.8) act='purchase';
+    else if(rnd>0.65) act='share';
+    else if(rnd>0.4) act='like';
+    logs.push({userId:u.id, activity:act, category:INTERESTS_CATEGORIES[Math.floor(Math.random()*INTERESTS_CATEGORIES.length)]});
+  }
+  return {users, logs};
+}
+
+// ── Crée les vecteurs d'intérêt binaires (notebook: _create_user_interest_vectors) ──
+function createInterestVectors(users){
+  const vectors={};
+  users.forEach(u=>{
+    vectors[u.id]=INTERESTS_CATEGORIES.map(c=>u.interests.includes(c)?1:0);
+  });
+  return vectors;
+}
+
+// ── Similarité cosinus (notebook: find_similar_users metric='cosine') ──
+function cosineSimilarity(a,b){
+  let dot=0,normA=0,normB=0;
+  for(let i=0;i<a.length;i++){dot+=a[i]*b[i];normA+=a[i]*a[i];normB+=b[i]*b[i];}
+  const denom=Math.sqrt(normA)*Math.sqrt(normB);
+  return denom===0?0:dot/denom;
+}
+
+// ── Distance euclidienne (notebook: find_similar_users metric='euclidean') ──
+function euclideanDistance(a,b){
+  let sum=0;
+  for(let i=0;i<a.length;i++) sum+=(a[i]-b[i])**2;
+  return Math.sqrt(sum);
+}
+
+// ── Trouver utilisateurs similaires (notebook: find_similar_users) ──
+function findSimilarUsers(targetVector, vectors, targetId, metric='cosine', topN=5){
+  const scores=Object.entries(vectors)
+    .filter(([id])=>id!==targetId)
+    .map(([id,vec])=>{
+      const score = metric==='cosine'
+        ? cosineSimilarity(targetVector, vec)
+        : -euclideanDistance(targetVector, vec); // négatif pour trier "plus proche = meilleur"
+      return {id, score};
+    })
+    .sort((a,b)=>b.score-a.score);
+  return scores.slice(0,topN);
+}
+
+// ── Catégories populaires (notebook: _get_popular_categories) ──
+function getPopularCategories(logs, topN=5){
+  const counts={};
+  logs.forEach(l=>{counts[l.category]=(counts[l.category]||0)+1;});
+  return Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,topN).map(e=>e[0]);
+}
+
+// ── Suggestions personnalisées (notebook: get_personalized_suggestions) ──
+function getPersonalizedSuggestions(userProfile, logs, popularCategories, numSuggestions=5){
+  const suggestions=new Set();
+  // 1. Intérêts directs
+  userProfile.interests.forEach(c=>suggestions.add(`Livre de ${c}`));
+  // 2. Activités récentes (like / purchase)
+  const userLogs=logs.filter(l=>l.userId===userProfile.id);
+  ['purchase','like'].forEach(act=>{
+    const cats=userLogs.filter(l=>l.activity===act).map(l=>l.category);
+    const freq={};
+    cats.forEach(c=>{freq[c]=(freq[c]||0)+1;});
+    Object.keys(freq).forEach(c=>suggestions.add(`Livre similaire à vos ${act}s en ${c}`));
+  });
+  // 3. Populaires si pas assez
+  if(suggestions.size<numSuggestions){
+    popularCategories.forEach(c=>suggestions.add(`Livre populaire de ${c}`));
+  }
+  // 4. Logique conditionnelle âge (notebook: if user_age >= 50)
+  if(userProfile.age>=50 && !userProfile.interests.includes('Biographie') && !userProfile.interests.includes('Histoire')){
+    suggestions.add('✨ Suggestion spéciale : Découvrez une biographie fascinante ou un livre d\'histoire');
+  }
+  return [...suggestions].slice(0,numSuggestions);
+}
+
+// ── Recommandations collaboratives (notebook: get_recommendations_from_similar_users) ──
+function getRecommendationsFromSimilarUsers(userProfile, users, vectors, targetVector, logs, popularCategories, numSuggestions=5, metric='cosine'){
+  const similar=findSimilarUsers(targetVector, vectors, userProfile.id||'current', metric, 5);
+  if(!similar.length) return getPersonalizedSuggestions(userProfile, logs, popularCategories, numSuggestions);
+
+  const knownInterests=new Set(userProfile.interests);
+  const newInterests=new Set();
+  similar.forEach(({id})=>{
+    const u=users.find(u=>u.id===id);
+    if(u) u.interests.forEach(i=>{if(!knownInterests.has(i)) newInterests.add(i);});
+  });
+
+  if(!newInterests.size) return getPersonalizedSuggestions(userProfile, logs, popularCategories, numSuggestions);
+
+  const suggestions=[...newInterests].slice(0,numSuggestions).map(i=>`Basé sur profils similaires : Livre de ${i}`);
+  if(suggestions.length<numSuggestions){
+    const extra=getPersonalizedSuggestions(userProfile, logs, popularCategories, numSuggestions-suggestions.length);
+    suggestions.push(...extra);
+  }
+  return suggestions.slice(0,numSuggestions);
+}
+
+// ── Initialise les boutons d'intérêts ──
+function initInterestsGrid(){
+  const grid=document.getElementById('rec-interests-grid');
+  grid.innerHTML=INTERESTS_CATEGORIES.map(c=>`<button class="tone-btn" data-interest="${c}" onclick="toggleInterest(this)">${c}</button>`).join('');
+}
+
+function toggleInterest(btn){btn.classList.toggle('selected');}
+
+function getSelectedInterests(){
+  return [...document.querySelectorAll('#rec-interests-grid .tone-btn.selected')].map(b=>b.dataset.interest);
+}
+
+// ── Chart.js : distribution des intérêts du profil ──
+let recChart=null;
+function drawInterestChart(userInterests){
+  const ctx=document.getElementById('rec-chart').getContext('2d');
+  if(recChart) recChart.destroy();
+  const data=INTERESTS_CATEGORIES.map(c=>userInterests.includes(c)?1:0);
+  recChart=new Chart(ctx,{
+    type:'bar',
+    data:{
+      labels:INTERESTS_CATEGORIES,
+      datasets:[{label:'Vos intérêts',data,backgroundColor:'rgba(99,102,241,0.7)',borderRadius:4}]
+    },
+    options:{
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{ticks:{font:{size:10},maxRotation:45}},
+        y:{display:false,max:1.5}
+      }
+    }
+  });
+}
+
+// ── Point d'entrée principal ──
+function generateRecommendations(){
+  const age=parseInt(document.getElementById('rec-age').value)||30;
+  const gender=document.getElementById('rec-gender').value;
+  const metric=document.getElementById('rec-metric').value;
+  const numSugg=parseInt(document.getElementById('rec-num').value)||5;
+  const interests=getSelectedInterests();
+
+  if(!interests.length){toast('Sélectionnez au moins un centre d\'intérêt.');return;}
+
+  // Génère la population synthétique
+  const {users, logs}=generateSyntheticUsers(100);
+
+  // Profil courant (non enregistré dans la population, donc on lui crée un ID temporaire)
+  const currentUser={id:'current_user', age, gender, interests};
+
+  // Vecteurs d'intérêts
+  const vectors=createInterestVectors(users);
+  const currentVector=INTERESTS_CATEGORIES.map(c=>interests.includes(c)?1:0);
+  vectors['current_user']=currentVector;
+
+  const popularCategories=getPopularCategories(logs,5);
+
+  // Suggestions personnalisées
+  const personal=getPersonalizedSuggestions(currentUser, logs, popularCategories, numSugg);
+
+  // Recommandations collaboratives
+  const collaborative=getRecommendationsFromSimilarUsers(currentUser, users, vectors, currentVector, logs, popularCategories, numSugg, metric);
+
+  // Utilisateurs similaires (pour affichage)
+  const similarUsers=findSimilarUsers(currentVector, vectors, 'current_user', metric, 3);
+
+  // Rendu
+  renderRecommendations(personal, collaborative, similarUsers, interests, users);
+}
+
+function renderRecommendations(personal, collaborative, similarUsers, interests, allUsers){
+  // Card personnalisée
+  const pCard=document.getElementById('rec-personal-card');
+  const pList=document.getElementById('rec-personal-list');
+  pList.innerHTML=personal.map(s=>`<div class="history-item" style="padding:8px 12px">
+    <div style="font-size:13px;color:var(--color-text-primary)"><i class="ti ti-book" style="margin-right:6px;color:#7F77DD"></i>${s}</div>
+  </div>`).join('');
+  pCard.style.display='';
+
+  // Card collaborative
+  const sCard=document.getElementById('rec-similar-card');
+  const sList=document.getElementById('rec-similar-list');
+  sList.innerHTML=collaborative.map(s=>`<div class="history-item" style="padding:8px 12px">
+    <div style="font-size:13px;color:var(--color-text-primary)"><i class="ti ti-users" style="margin-right:6px;color:#1D9E75"></i>${s}</div>
+  </div>`).join('');
+  // Utilisateurs similaires
+  const suEl=document.getElementById('rec-similar-users');
+  suEl.innerHTML=`<div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:6px">Top profils similaires :</div>`
+    +similarUsers.map(u=>{
+      const found=allUsers.find(a=>a.id===u.id);
+      const score=(u.score*100).toFixed(0);
+      return `<span class="tag tag-teal" style="margin:2px">${u.id} · ${found?found.interests.slice(0,2).join(', '):'—'} · ${score}%</span>`;
+    }).join('');
+  sCard.style.display='';
+
+  // Stats + chart
+  const statsCard=document.getElementById('rec-stats-card');
+  document.getElementById('rec-stats-content').innerHTML=`
+    <div class="badge-row">
+      <span class="tag tag-purple"><i class="ti ti-user" aria-hidden="true"></i> ${interests.length} intérêt${interests.length>1?'s':''}</span>
+      ${interests.map(i=>`<span class="tag tag-blue">${i}</span>`).join('')}
+    </div>`;
+  drawInterestChart(interests);
+  statsCard.style.display='';
+  toast('Recommandations générées !');
+}
+
+// Init
+initInterestsGrid();
 </script>
