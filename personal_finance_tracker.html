@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Suivi Finances Personnelles</title>
+
+  <!-- Tabler Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
+  <!-- Chart.js (pour les graphiques interactifs) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+  <!-- CSS -->
+  <link rel="stylesheet" href="personal_finance_tracker.css">
+</head>
+<body>
+
+<div class="app-wrapper">
+
+  <h2 class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden;">
+    Application de suivi des finances personnelles
+  </h2>
+
+  <!-- ══ NAVIGATION ══ -->
+  <nav class="nav" role="navigation" aria-label="Navigation principale">
+    <button class="active" onclick="showPage('dashboard', this)">
+      <i class="ti ti-layout-dashboard" aria-hidden="true"></i> Tableau de bord
+    </button>
+    <button onclick="showPage('transactions', this)">
+      <i class="ti ti-arrows-right-left" aria-hidden="true"></i> Transactions
+    </button>
+    <button onclick="showPage('budget', this)">
+      <i class="ti ti-chart-pie" aria-hidden="true"></i> Budget
+    </button>
+    <button onclick="showPage('goals', this)">
+      <i class="ti ti-target" aria-hidden="true"></i> Objectifs
+    </button>
+  </nav>
+
+  <!-- ══════════════════════════════════
+       DASHBOARD
+  ══════════════════════════════════ -->
+  <div id="page-dashboard" class="page active">
+
+    <!-- Métriques résumé -->
+    <div class="metrics" id="metrics-summary">
+      <div class="loader">Chargement…</div>
+    </div>
+
+    <div class="two-col">
+
+      <!-- Graphique flux mensuel — image PNG de Matplotlib -->
+      <div class="card">
+        <div class="card-title">
+          <i class="ti ti-chart-line" aria-hidden="true" style="font-size:16px"></i>
+          Flux mensuel
+          <button onclick="refreshCharts()"
+                  style="margin-left:auto;background:none;border:none;cursor:pointer;
+                         color:var(--color-text-tertiary);font-size:14px;"
+                  title="Actualiser les graphiques" aria-label="Actualiser">
+            <i class="ti ti-refresh" aria-hidden="true"></i>
+          </button>
+        </div>
+        <!--
+          L'image est générée par Matplotlib côté Python et servie via /api/charts/flow.png
+          Un timestamp en query-string force le rechargement à chaque refresh.
+        -->
+        <img id="img-flow"
+             src=""
+             alt="Graphique des revenus et dépenses sur 6 mois"
+             class="chart-img"
+             style="min-height:180px;background:var(--color-background-secondary);">
+      </div>
+
+      <!-- Graphique donut — image PNG de Matplotlib -->
+      <div class="card">
+        <div class="card-title">
+          <i class="ti ti-chart-donut" aria-hidden="true" style="font-size:16px"></i>
+          Répartition dépenses
+        </div>
+        <img id="img-donut"
+             src=""
+             alt="Répartition des dépenses par catégorie"
+             class="chart-img"
+             style="min-height:180px;background:var(--color-background-secondary);">
+      </div>
+
+    </div>
+
+    <!-- Transactions récentes -->
+    <div class="card">
+      <div class="card-title">
+        <i class="ti ti-clock" aria-hidden="true" style="font-size:16px"></i>
+        Transactions récentes
+      </div>
+      <div class="tx-list" id="recent-tx">
+        <div class="loader">Chargement…</div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ══════════════════════════════════
+       TRANSACTIONS
+  ══════════════════════════════════ -->
+  <div id="page-transactions" class="page">
+    <div class="two-col">
+
+      <!-- Formulaire ajout -->
+      <div class="card">
+        <div class="card-title">
+          <i class="ti ti-plus" aria-hidden="true" style="font-size:16px"></i>
+          Ajouter une transaction
+        </div>
+        <div class="form-grid">
+          <div>
+            <label for="tx-name">Libellé</label>
+            <input id="tx-name" type="text" placeholder="Ex: Supermarché">
+          </div>
+          <div>
+            <label for="tx-amount">Montant (€)</label>
+            <input id="tx-amount" type="number" placeholder="0.00" min="0" step="0.01">
+          </div>
+          <div>
+            <label for="tx-cat">Catégorie</label>
+            <select id="tx-cat">
+              <option value="Alimentation">🛒 Alimentation</option>
+              <option value="Transport">🚗 Transport</option>
+              <option value="Loisirs">🎬 Loisirs</option>
+              <option value="Santé">💊 Santé</option>
+              <option value="Logement">🏠 Logement</option>
+              <option value="Revenus">💰 Revenus</option>
+              <option value="Épargne">🏦 Épargne</option>
+              <option value="Autre">📦 Autre</option>
+            </select>
+          </div>
+          <div>
+            <label for="tx-type">Type</label>
+            <select id="tx-type">
+              <option value="expense">Dépense</option>
+              <option value="income">Revenu</option>
+            </select>
+          </div>
+          <div class="form-grid full">
+            <label for="tx-date">Date</label>
+            <input id="tx-date" type="date">
+          </div>
+        </div>
+        <button class="btn-add" onclick="addTransaction()">
+          <i class="ti ti-plus" aria-hidden="true"></i> Ajouter
+        </button>
+      </div>
+
+      <!-- Filtres -->
+      <div class="card">
+        <div class="card-title">
+          <i class="ti ti-filter" aria-hidden="true" style="font-size:16px"></i>
+          Filtres
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <div>
+            <label for="filter-cat">Catégorie</label>
+            <select id="filter-cat" onchange="renderTransactions()">
+              <option value="">Toutes</option>
+              <option>Alimentation</option><option>Transport</option>
+              <option>Loisirs</option><option>Santé</option>
+              <option>Logement</option><option>Revenus</option>
+              <option>Épargne</option><option>Autre</option>
+            </select>
+          </div>
+          <div>
+            <label for="filter-type">Type</label>
+            <select id="filter-type" onchange="renderTransactions()">
+              <option value="">Tous</option>
+              <option value="expense">Dépenses</option>
+              <option value="income">Revenus</option>
+            </select>
+          </div>
+          <div style="font-size:12px;color:var(--color-text-secondary);padding-top:4px;">
+            <span id="tx-count">0</span> transaction(s) affichée(s)
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Historique -->
+    <div class="card">
+      <div class="card-title">
+        <i class="ti ti-list" aria-hidden="true" style="font-size:16px"></i>
+        Historique
+      </div>
+      <div class="tx-list" id="all-tx">
+        <div class="loader">Chargement…</div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ══════════════════════════════════
+       BUDGET
+  ══════════════════════════════════ -->
+  <div id="page-budget" class="page">
+
+    <div class="card" style="margin-bottom:1rem;">
+      <div class="card-title">
+        <i class="ti ti-settings" aria-hidden="true" style="font-size:16px"></i>
+        Définir les budgets mensuels
+      </div>
+      <div class="form-grid" style="margin-bottom:10px;">
+        <div>
+          <label for="budget-cat">Catégorie</label>
+          <select id="budget-cat">
+            <option>Alimentation</option><option>Transport</option>
+            <option>Loisirs</option><option>Santé</option>
+            <option>Logement</option><option>Autre</option>
+          </select>
+        </div>
+        <div>
+          <label for="budget-amount">Budget (€)</label>
+          <input id="budget-amount" type="number" placeholder="Ex: 500" min="0">
+        </div>
+      </div>
+      <button class="btn-add" onclick="setBudget()">
+        <i class="ti ti-check" aria-hidden="true"></i> Enregistrer le budget
+      </button>
+    </div>
+
+    <div class="card">
+      <div class="card-title">
+        <i class="ti ti-chart-bar" aria-hidden="true" style="font-size:16px"></i>
+        Suivi budgétaire du mois
+      </div>
+      <div id="budget-list">
+        <div class="loader">Chargement…</div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ══════════════════════════════════
+       OBJECTIFS
+  ══════════════════════════════════ -->
+  <div id="page-goals" class="page">
+
+    <div class="card">
+      <div class="card-title">
+        <i class="ti ti-plus" aria-hidden="true" style="font-size:16px"></i>
+        Nouvel objectif d'épargne
+      </div>
+      <div class="form-grid">
+        <div class="form-grid full">
+          <label for="goal-name">Nom de l'objectif</label>
+          <input id="goal-name" type="text" placeholder="Ex: Vacances, Voiture…">
+        </div>
+        <div>
+          <label for="goal-target">Montant cible (€)</label>
+          <input id="goal-target" type="number" placeholder="0" min="0">
+        </div>
+        <div>
+          <label for="goal-saved">Déjà épargné (€)</label>
+          <input id="goal-saved" type="number" placeholder="0" min="0">
+        </div>
+      </div>
+      <button class="btn-add" onclick="addGoal()">
+        <i class="ti ti-target" aria-hidden="true"></i> Ajouter l'objectif
+      </button>
+    </div>
+
+    <div id="goals-list">
+      <div class="loader">Chargement…</div>
+    </div>
+  </div>
+
+</div><!-- /.app-wrapper -->
+
+<!-- Toast -->
+<div id="toast" role="alert" aria-live="polite"></div>
+
+
+<!-- ══════════════════════════════════
+     JAVASCRIPT — Appels API Flask
+══════════════════════════════════ -->
+<script>
+/* ─── Config ─────────────────────────────────── */
+const API = "http://localhost:5000/api";   // ← URL du serveur Flask
+
+const CAT_COLORS = {
+  Alimentation:"#1D9E75", Transport:"#378ADD", Loisirs:"#7F77DD",
+  Santé:"#D85A30", Logement:"#BA7517", Épargne:"#3B6D11",
+  Revenus:"#0F6E56", Autre:"#888780"
+};
+const CAT_ICONS = {
+  Alimentation:"ti-shopping-cart", Transport:"ti-car", Loisirs:"ti-movie",
+  Santé:"ti-pill", Logement:"ti-home", Revenus:"ti-coin",
+  Épargne:"ti-piggy-bank", Autre:"ti-box"
+};
+
+/* ─── Helpers ────────────────────────────────── */
+const fmt = n => new Intl.NumberFormat("fr-FR",
+  {style:"currency",currency:"EUR",minimumFractionDigits:2}).format(n);
+
+function toast(msg) {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.classList.add("show");
+  setTimeout(() => el.classList.remove("show"), 2500);
+}
+
+async function api(path, opts = {}) {
+  const res = await fetch(API + path, {
+    headers: {"Content-Type":"application/json"},
+    ...opts
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({error: res.statusText}));
+    throw new Error(err.error || res.statusText);
+  }
+  return res.json();
+}
+
+/* ─── Navigation ─────────────────────────────── */
+function showPage(p, btn) {
+  document.querySelectorAll(".page").forEach(el => el.classList.remove("active"));
+  document.querySelectorAll(".nav button").forEach(el => el.classList.remove("active"));
+  document.getElementById("page-" + p).classList.add("active");
+  if (btn) btn.classList.add("active");
+  if (p === "dashboard")    renderDashboard();
+  if (p === "transactions") renderTransactions();
+  if (p === "budget")       renderBudget();
+  if (p === "goals")        renderGoals();
+}
+
+/* ─── DASHBOARD ──────────────────────────────── */
+async function renderDashboard() {
+  // 1. Métriques résumé depuis /api/summary
+  try {
+    const s = await api("/summary");
+    document.getElementById("metrics-summary").innerHTML = `
+      <div class="metric">
+        <div class="metric-label"><i class="ti ti-wallet" aria-hidden="true"></i> Solde total</div>
+        <div class="metric-value ${s.balance >= 0 ? "pos" : "neg"}">${fmt(s.balance)}</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label"><i class="ti ti-arrow-down" aria-hidden="true"></i> Revenus</div>
+        <div class="metric-value pos">${fmt(s.income)}</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label"><i class="ti ti-arrow-up" aria-hidden="true"></i> Dépenses</div>
+        <div class="metric-value neg">${fmt(s.expenses)}</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label"><i class="ti ti-piggy-bank" aria-hidden="true"></i> Épargne</div>
+        <div class="metric-value">${fmt(s.savings)}</div>
+      </div>`;
+  } catch(e) { toast("Erreur résumé : " + e.message); }
+
+  // 2. Images PNG générées par Matplotlib — forcer le rechargement
+  refreshCharts();
+
+  // 3. Transactions récentes
+  try {
+    const txs = await api("/transactions");
+    const recent = txs.slice(0, 5);
+    document.getElementById("recent-tx").innerHTML =
+      recent.length ? recent.map(renderTxHTML).join("") :
+      "<p style='font-size:13px;color:var(--color-text-secondary);padding:1rem;'>Aucune transaction.</p>";
+  } catch(e) { toast("Erreur transactions : " + e.message); }
+}
+
+/* Recharge les images PNG Matplotlib avec cache-busting */
+function refreshCharts() {
+  const ts = Date.now();
+  document.getElementById("img-flow").src  = `${API}/charts/flow.png?t=${ts}`;
+  document.getElementById("img-donut").src = `${API}/charts/donut.png?t=${ts}`;
+}
+
+/* ─── TRANSACTIONS ───────────────────────────── */
+async function renderTransactions() {
+  const cat  = document.getElementById("filter-cat").value;
+  const type = document.getElementById("filter-type").value;
+  let url = "/transactions?";
+  if (cat)  url += `cat=${encodeURIComponent(cat)}&`;
+  if (type) url += `type=${type}`;
+
+  try {
+    const txs = await api(url);
+    document.getElementById("tx-count").textContent = txs.length;
+    document.getElementById("all-tx").innerHTML =
+      txs.length ? txs.map(renderTxHTML).join("") :
+      "<p style='font-size:13px;color:var(--color-text-secondary);text-align:center;padding:1rem;'>Aucune transaction trouvée.</p>";
+  } catch(e) { toast("Erreur : " + e.message); }
+}
+
+function renderTxHTML(t) {
+  const color    = CAT_COLORS[t.cat] || "#888";
+  const icon     = CAT_ICONS[t.cat]  || "ti-box";
+  const sign     = t.type === "income" ? "+" : "-";
+  const amtColor = t.type === "income" ? "#1D9E75" : "#D85A30";
+  const dateStr  = new Date(t.date).toLocaleDateString("fr-FR");
+  return `<div class="tx">
+    <div class="tx-icon" style="background:${color}20;">
+      <i class="ti ${icon}" style="color:${color};font-size:16px;" aria-hidden="true"></i>
+    </div>
+    <div class="tx-info">
+      <div class="tx-name">${t.name}</div>
+      <div class="tx-cat">${t.cat}</div>
+    </div>
+    <div style="text-align:right;">
+      <div class="tx-amt" style="color:${amtColor}">${sign}${fmt(t.amount)}</div>
+      <div class="tx-date">${dateStr}</div>
+    </div>
+    <button onclick="deleteTransaction(${t.id})"
+            style="background:none;border:none;cursor:pointer;padding:4px;color:var(--color-text-tertiary);"
+            aria-label="Supprimer la transaction ${t.name}">
+      <i class="ti ti-trash" style="font-size:14px;" aria-hidden="true"></i>
+    </button>
+  </div>`;
+}
+
+async function addTransaction() {
+  const name   = document.getElementById("tx-name").value.trim();
+  const amount = parseFloat(document.getElementById("tx-amount").value);
+  const cat    = document.getElementById("tx-cat").value;
+  const type   = document.getElementById("tx-type").value;
+  const date   = document.getElementById("tx-date").value;
+
+  if (!name || !amount || amount <= 0) {
+    toast("Veuillez renseigner un libellé et un montant valide."); return;
+  }
+  try {
+    await api("/transactions", {
+      method: "POST",
+      body: JSON.stringify({name, amount, cat, type, date})
+    });
+    document.getElementById("tx-name").value   = "";
+    document.getElementById("tx-amount").value = "";
+    toast("Transaction ajoutée !");
+    renderTransactions();
+    renderDashboard();
+  } catch(e) { toast("Erreur : " + e.message); }
+}
+
+async function deleteTransaction(id) {
+  try {
+    await api(`/transactions/${id}`, {method:"DELETE"});
+    toast("Transaction supprimée.");
+    renderTransactions();
+    renderDashboard();
+  } catch(e) { toast("Erreur : " + e.message); }
+}
+
+/* ─── BUDGET ─────────────────────────────────── */
+async function renderBudget() {
+  try {
+    const budgets = await api("/budgets");
+    if (!budgets.length) {
+      document.getElementById("budget-list").innerHTML =
+        "<p style='font-size:13px;color:var(--color-text-secondary);'>Aucun budget défini.</p>";
+      return;
+    }
+    document.getElementById("budget-list").innerHTML = budgets.map(b => {
+      const color = b.pct > 90 ? "#D85A30" : b.pct > 70 ? "#BA7517" : "#1D9E75";
+      return `<div style="margin-bottom:1rem;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <span style="font-size:13px;font-weight:500;color:var(--color-text-primary);">${b.cat}</span>
+          <span style="font-size:12px;color:var(--color-text-secondary);">${fmt(b.spent)} / ${fmt(b.limit)}</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" style="width:${b.pct}%;background:${color};"></div>
+        </div>
+        <div style="font-size:11px;color:${color};margin-top:3px;">
+          ${b.pct}% utilisé · ${b.pct >= 100 ? "Dépassé !" : fmt(b.remaining) + " restant"}
+        </div>
+      </div>`;
+    }).join("");
+  } catch(e) { toast("Erreur budgets : " + e.message); }
+}
+
+async function setBudget() {
+  const cat    = document.getElementById("budget-cat").value;
+  const amount = parseFloat(document.getElementById("budget-amount").value);
+  if (!amount || amount <= 0) { toast("Montant invalide."); return; }
+  try {
+    await api("/budgets", {method:"POST", body:JSON.stringify({cat, limit:amount})});
+    document.getElementById("budget-amount").value = "";
+    toast("Budget enregistré !");
+    renderBudget();
+  } catch(e) { toast("Erreur : " + e.message); }
+}
+
+/* ─── OBJECTIFS ──────────────────────────────── */
+async function renderGoals() {
+  try {
+    const goals = await api("/goals");
+    if (!goals.length) {
+      document.getElementById("goals-list").innerHTML =
+        `<div class="card"><p style="font-size:13px;color:var(--color-text-secondary);text-align:center;">
+          Aucun objectif défini. Créez-en un ci-dessus !</p></div>`;
+      return;
+    }
+    document.getElementById("goals-list").innerHTML = goals.map(g => `
+      <div class="card" style="margin-bottom:1rem;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.75rem;">
+          <div>
+            <div style="font-size:14px;font-weight:500;color:var(--color-text-primary);">${g.name}</div>
+            <div style="font-size:12px;color:var(--color-text-secondary);margin-top:2px;">Objectif : ${fmt(g.target)}</div>
+          </div>
+          <span style="font-size:18px;font-weight:500;color:${g.pct >= 100 ? "#1D9E75" : "var(--color-text-primary)"};">${g.pct}%</span>
+        </div>
+        <div class="progress-bar" style="height:8px;">
+          <div class="progress-fill" style="width:${g.pct}%;background:${g.pct >= 100 ? "#1D9E75" : "#7F77DD"};"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:12px;color:var(--color-text-secondary);">
+          <span>Épargné : <strong style="color:var(--color-text-primary);">${fmt(g.saved)}</strong></span>
+          <span>${g.pct >= 100 ? "Objectif atteint !" : "Reste : " + fmt(g.remaining)}</span>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:10px;">
+          <input type="number" id="add-${g.id}" placeholder="Ajouter (€)" min="0"
+                 style="flex:1;font-size:12px;">
+          <button onclick="addToGoal(${g.id})"
+                  style="padding:6px 12px;font-size:12px;background:var(--color-background-secondary);
+                         border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);
+                         cursor:pointer;color:var(--color-text-primary);"
+                  aria-label="Ajouter de l'épargne à ${g.name}">
+            <i class="ti ti-plus" aria-hidden="true"></i>
+          </button>
+          <button onclick="deleteGoal(${g.id})"
+                  style="padding:6px 10px;font-size:12px;background:none;
+                         border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-md);
+                         cursor:pointer;color:var(--color-text-secondary);"
+                  aria-label="Supprimer l'objectif ${g.name}">
+            <i class="ti ti-trash" aria-hidden="true"></i>
+          </button>
+        </div>
+      </div>`).join("");
+  } catch(e) { toast("Erreur objectifs : " + e.message); }
+}
+
+async function addGoal() {
+  const name   = document.getElementById("goal-name").value.trim();
+  const target = parseFloat(document.getElementById("goal-target").value);
+  const saved  = parseFloat(document.getElementById("goal-saved").value) || 0;
+  if (!name || !target || target <= 0) {
+    toast("Veuillez renseigner un nom et un montant cible."); return;
+  }
+  try {
+    await api("/goals", {method:"POST", body:JSON.stringify({name, target, saved})});
+    document.getElementById("goal-name").value   = "";
+    document.getElementById("goal-target").value = "";
+    document.getElementById("goal-saved").value  = "";
+    toast("Objectif ajouté !");
+    renderGoals();
+  } catch(e) { toast("Erreur : " + e.message); }
+}
+
+async function addToGoal(id) {
+  const v = parseFloat(document.getElementById("add-" + id).value) || 0;
+  if (v <= 0) { toast("Montant invalide."); return; }
+  try {
+    await api(`/goals/${id}`, {method:"PATCH", body:JSON.stringify({amount: v})});
+    toast("Épargne mise à jour !");
+    renderGoals();
+  } catch(e) { toast("Erreur : " + e.message); }
+}
+
+async function deleteGoal(id) {
+  try {
+    await api(`/goals/${id}`, {method:"DELETE"});
+    toast("Objectif supprimé.");
+    renderGoals();
+  } catch(e) { toast("Erreur : " + e.message); }
+}
+
+/* ─── Init ───────────────────────────────────── */
+document.getElementById("tx-date").value = new Date().toISOString().split("T")[0];
+renderDashboard();
+</script>
+
+</body>
+</html>
