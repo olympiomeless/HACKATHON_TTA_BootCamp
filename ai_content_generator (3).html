@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Générateur de contenu IA</title>
+
+  <!-- Tabler Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
+  <!-- Chart.js (pour les graphiques interactifs) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+  <!-- CSS -->
+  <link rel="stylesheet" href="ai_content_generator.css">
+</head>
+<body>
+
+
+<h2 class="sr-only">Générateur de contenu personnalisé basé sur l'IA</h2>
+
+<div class="app">
+<nav class="nav" role="navigation" aria-label="Navigation principale">
+  <button class="active" onclick="showPage('generate',this)"><i class="ti ti-wand" aria-hidden="true"></i> Générer</button>
+  <button onclick="showPage('templates',this)"><i class="ti ti-layout-grid" aria-hidden="true"></i> Modèles</button>
+  <button onclick="showPage('profile',this)"><i class="ti ti-user-circle" aria-hidden="true"></i> Profil</button>
+  <button onclick="showPage('saved',this)"><i class="ti ti-bookmark" aria-hidden="true"></i> Enregistrés</button>
+  <button onclick="showPage('recommandations',this)"><i class="ti ti-books" aria-hidden="true"></i> Recommandations</button>
+</nav>
+
+<!-- ── GÉNÉRATION ── -->
+<div id="page-generate" class="page active">
+  <div class="metrics" id="stats-bar">
+    <div class="metric"><div class="metric-label">Générés</div><div class="metric-value" id="stat-count">0</div></div>
+    <div class="metric"><div class="metric-label">Enregistrés</div><div class="metric-value" id="stat-saved">0</div></div>
+    <div class="metric"><div class="metric-label">Mots créés</div><div class="metric-value" id="stat-words">0</div></div>
+    <div class="metric"><div class="metric-label">Type favori</div><div class="metric-value" style="font-size:13px" id="stat-fav">—</div></div>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title"><i class="ti ti-settings-2" aria-hidden="true"></i> Paramètres</div>
+
+      <div class="form-row">
+        <label for="gen-type">Type de contenu</label>
+        <select id="gen-type">
+          <option value="article">Article de blog</option>
+          <option value="social">Post réseaux sociaux</option>
+          <option value="email">E-mail professionnel</option>
+          <option value="caption">Légende photo</option>
+          <option value="description">Description produit</option>
+          <option value="slogan">Slogan / tagline</option>
+          <option value="story">Histoire courte</option>
+          <option value="custom">Personnalisé</option>
+        </select>
+      </div>
+
+      <div class="form-row">
+        <label for="gen-topic">Sujet / Brief</label>
+        <textarea id="gen-topic" rows="3" placeholder="Décrivez le sujet, le contexte, les points clés à aborder…"></textarea>
+      </div>
+
+      <div class="form-row">
+        <label>Ton</label>
+        <div class="tone-grid" id="tone-grid">
+          <button class="tone-btn selected" data-tone="professionnel">🎯 Professionnel</button>
+          <button class="tone-btn" data-tone="décontracté">😊 Décontracté</button>
+          <button class="tone-btn" data-tone="inspirant">✨ Inspirant</button>
+          <button class="tone-btn" data-tone="humoristique">😄 Humoristique</button>
+          <button class="tone-btn" data-tone="persuasif">💡 Persuasif</button>
+          <button class="tone-btn" data-tone="informatif">📚 Informatif</button>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <label>Longueur cible</label>
+        <div class="length-slider">
+          <input type="range" id="gen-length" min="1" max="3" step="1" value="2">
+          <span id="length-label">Moyen</span>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <label for="gen-keywords">Mots-clés (optionnel)</label>
+        <input id="gen-keywords" type="text" placeholder="Ex: innovation, durabilité, technologie">
+      </div>
+
+      <button class="btn-gen" id="btn-gen" onclick="generateContent()">
+        <i class="ti ti-sparkles" aria-hidden="true"></i> Générer le contenu
+      </button>
+    </div>
+
+    <div class="card" style="display:flex;flex-direction:column;gap:10px">
+      <div class="card-title"><i class="ti ti-file-text" aria-hidden="true"></i> Résultat
+        <div style="margin-left:auto;display:flex;gap:6px">
+          <button class="btn-sm" id="btn-copy" onclick="copyResult()" style="display:none"><i class="ti ti-copy" aria-hidden="true"></i> Copier</button>
+          <button class="btn-sm" id="btn-save" onclick="saveResult()" style="display:none"><i class="ti ti-bookmark" aria-hidden="true"></i> Garder</button>
+          <button class="btn-sm" id="btn-regen" onclick="generateContent()" style="display:none"><i class="ti ti-refresh" aria-hidden="true"></i></button>
+        </div>
+      </div>
+      <div class="result-box" id="result-box" style="flex:1">
+        <span style="color:var(--color-text-tertiary);font-size:13px">Le contenu généré apparaîtra ici…</span>
+      </div>
+      <div id="result-tags" style="display:none">
+        <div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:4px">Analyse :</div>
+        <div class="badge-row" id="tags-row"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><i class="ti ti-history" aria-hidden="true"></i> Historique récent</div>
+    <div id="history-list"><div class="empty-state"><i class="ti ti-clock" aria-hidden="true"></i>Aucune génération pour cette session.</div></div>
+  </div>
+</div>
+
+<!-- ── MODÈLES ── -->
+<div id="page-templates" class="page">
+  <div class="card">
+    <div class="card-title"><i class="ti ti-layout-grid" aria-hidden="true"></i> Modèles rapides</div>
+    <div class="templates-grid" id="tpl-grid"></div>
+  </div>
+  <div class="card" id="tpl-preview-card" style="display:none">
+    <div class="card-title"><i class="ti ti-eye" aria-hidden="true"></i> Aperçu du modèle</div>
+    <div class="result-box" id="tpl-preview"></div>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <button class="btn-sm" onclick="useTpl()"><i class="ti ti-wand" aria-hidden="true"></i> Utiliser ce modèle</button>
+      <button class="btn-sm" onclick="closeTpl()"><i class="ti ti-x" aria-hidden="true"></i> Fermer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── PROFIL ── -->
+<div id="page-profile" class="page">
+  <div class="card">
+    <div class="card-title"><i class="ti ti-user-circle" aria-hidden="true"></i> Mon profil de création</div>
+    <p style="font-size:12px;color:var(--color-text-secondary);margin-bottom:12px">Ces informations personnalisent chaque génération à votre style et contexte.</p>
+    <div class="profile-grid">
+      <div class="form-row"><label for="p-name">Votre nom / marque</label><input id="p-name" type="text" placeholder="Ex: Marie Dupont, Acme Corp."></div>
+      <div class="form-row"><label for="p-role">Rôle / secteur</label><input id="p-role" type="text" placeholder="Ex: Responsable marketing, Start-up tech"></div>
+      <div class="form-row"><label for="p-audience">Audience cible</label><input id="p-audience" type="text" placeholder="Ex: Jeunes professionnels 25-35 ans"></div>
+      <div class="form-row"><label for="p-lang">Langue de génération</label>
+        <select id="p-lang">
+          <option value="français">Français</option>
+          <option value="anglais">Anglais</option>
+          <option value="espagnol">Espagnol</option>
+          <option value="arabe">Arabe</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row"><label for="p-style">Style d'écriture personnel</label><textarea id="p-style" rows="2" placeholder="Ex: Direct, concis, avec des métaphores créatives. J'évite le jargon technique."></textarea></div>
+    <div class="form-row"><label for="p-avoid">À éviter</label><textarea id="p-avoid" rows="2" placeholder="Ex: Anglicismes, phrases trop longues, termes trop formels…"></textarea></div>
+    <button class="btn-gen" onclick="saveProfile()"><i class="ti ti-device-floppy" aria-hidden="true"></i> Enregistrer le profil</button>
+  </div>
+  <div class="card">
+    <div class="card-title"><i class="ti ti-chart-bar" aria-hidden="true"></i> Mes préférences de ton</div>
+    <div class="badge-row" id="fav-tones"></div>
+    <p style="font-size:11px;color:var(--color-text-secondary);margin-top:8px">Basées sur vos 10 dernières générations.</p>
+  </div>
+</div>
+
+<!-- ── ENREGISTRÉS ── -->
+<div id="page-saved" class="page">
+  <div class="card" style="display:flex;flex-direction:row;align-items:center;gap:10px;padding:10px 16px">
+    <i class="ti ti-search" style="font-size:16px;color:var(--color-text-secondary)" aria-hidden="true"></i>
+    <input type="text" id="search-saved" placeholder="Rechercher dans les enregistrements…" style="border:none;background:none;font-size:13px;flex:1;padding:0" oninput="renderSaved()">
+  </div>
+  <div class="card">
+    <div class="card-title"><i class="ti ti-bookmark" aria-hidden="true"></i> Contenus enregistrés
+      <button class="btn-sm" style="margin-left:auto" onclick="clearSaved()"><i class="ti ti-trash" aria-hidden="true"></i> Tout effacer</button>
+    </div>
+    <div id="saved-list"><div class="empty-state"><i class="ti ti-bookmark" aria-hidden="true"></i>Aucun contenu enregistré.</div></div>
+  </div>
+</div>
+<!-- ── RECOMMANDATIONS ── -->
+<div id="page-recommandations" class="page">
+  <div class="card">
+    <div class="card-title"><i class="ti ti-user-circle" aria-hidden="true"></i> Profil de l'utilisateur</div>
+    <p style="font-size:12px;color:var(--color-text-secondary);margin-bottom:12px">Renseignez votre profil pour obtenir des recommandations de livres personnalisées basées sur la similarité entre utilisateurs.</p>
+    <div class="profile-grid">
+      <div class="form-row"><label for="rec-age">Âge</label><input id="rec-age" type="number" min="18" max="99" placeholder="Ex: 34"></div>
+      <div class="form-row"><label for="rec-gender">Genre</label>
+        <select id="rec-gender">
+          <option value="Male">Homme</option>
+          <option value="Female">Femme</option>
+          <option value="Other">Autre</option>
+        </select>
+      </div>
+      <div class="form-row"><label for="rec-metric">Méthode de similarité</label>
+        <select id="rec-metric">
+          <option value="cosine">Similarité cosinus</option>
+          <option value="euclidean">Distance euclidienne</option>
+        </select>
+      </div>
+      <div class="form-row"><label for="rec-num">Nombre de suggestions</label>
+        <select id="rec-num">
+          <option value="3">3</option>
+          <option value="5" selected>5</option>
+          <option value="8">8</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <label>Centres d'intérêt</label>
+      <div class="tone-grid" id="rec-interests-grid" style="flex-wrap:wrap;gap:6px;display:flex">
+        <!-- populated by JS -->
+      </div>
+    </div>
+    <button class="btn-gen" onclick="generateRecommendations()"><i class="ti ti-sparkles" aria-hidden="true"></i> Générer mes recommandations</button>
+  </div>
+
+  <div class="two-col">
+    <div class="card" id="rec-personal-card" style="display:none">
+      <div class="card-title"><i class="ti ti-star" aria-hidden="true"></i> Suggestions personnalisées</div>
+      <div id="rec-personal-list"></div>
+    </div>
+    <div class="card" id="rec-similar-card" style="display:none">
+      <div class="card-title"><i class="ti ti-users" aria-hidden="true"></i> Basées sur des profils similaires</div>
+      <div id="rec-similar-list"></div>
+      <div id="rec-similar-users" style="margin-top:10px"></div>
+    </div>
+  </div>
+
+  <div class="card" id="rec-stats-card" style="display:none">
+    <div class="card-title"><i class="ti ti-chart-bar" aria-hidden="true"></i> Analyse de votre profil</div>
+    <div id="rec-stats-content"></div>
+    <canvas id="rec-chart" height="120" style="margin-top:12px"></canvas>
+  </div>
+
+  <!-- ── DIAGRAMMES DU NOTEBOOK ── -->
+  <div class="card" id="rec-diagrams-card">
+    <div class="card-title"><i class="ti ti-chart-dots" aria-hidden="true"></i> Visualisations analytiques
+      <span style="font-size:11px;color:var(--color-text-secondary);margin-left:8px;font-weight:400">Données du moteur (issu du notebook)</span>
+    </div>
+
+    <!-- Tabs de navigation -->
+    <div class="diagram-tabs" id="diagram-tabs" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
+      <button class="tone-btn selected" data-diagram="interests" onclick="showDiagram('interests',this)">📊 Distribution intérêts</button>
+      <button class="tone-btn" data-diagram="activity-hour" onclick="showDiagram('activity-hour',this)">⏰ Activité par heure</button>
+      <button class="tone-btn" data-diagram="heatmap" onclick="showDiagram('heatmap',this)">🌡️ Heatmap catégories</button>
+      <button class="tone-btn" data-diagram="seg-age" onclick="showDiagram('seg-age',this)">👥 Reco. par âge</button>
+      <button class="tone-btn" data-diagram="seg-gender" onclick="showDiagram('seg-gender',this)">⚥ Reco. par genre</button>
+    </div>
+
+    <!-- Conteneur des images -->
+    <div id="diagram-container" style="position:relative;min-height:200px;text-align:center">
+      <div id="diagram-loader" style="display:none;padding:40px 0;color:var(--color-text-secondary);font-size:13px">
+        <i class="ti ti-loader-2" style="animation:spin 1s linear infinite;font-size:24px;display:block;margin-bottom:8px"></i>
+        Génération du diagramme…
+      </div>
+      <img id="diagram-img" src="" alt="Diagramme analytique" style="max-width:100%;border-radius:8px;display:none;box-shadow:0 2px 12px rgba(0,0,0,.08)">
+      <div id="diagram-error" style="display:none;color:#D85A30;font-size:13px;padding:20px">
+        <i class="ti ti-alert-triangle" style="margin-right:6px"></i>Impossible de charger le diagramme. Vérifiez que le serveur Flask est en cours d'exécution.
+      </div>
+      <div id="diagram-placeholder" style="padding:40px 20px;color:var(--color-text-secondary);font-size:13px;border:1.5px dashed var(--color-border);border-radius:8px">
+        <i class="ti ti-photo" style="font-size:28px;display:block;margin-bottom:8px;opacity:.4"></i>
+        Cliquez sur un onglet ci-dessus pour charger le diagramme.<br>
+        <span style="font-size:11px;opacity:.7">Requiert le serveur <code>App.py</code> sur <code>localhost:5000</code></span>
+      </div>
+    </div>
+
+    <div style="margin-top:10px;font-size:11px;color:var(--color-text-secondary)">
+      <i class="ti ti-info-circle" style="margin-right:4px"></i>
+      Ces diagrammes sont servis par Flask via <code>/api/charts/</code> — ils reflètent les données synthétiques générées au démarrage du serveur.
+    </div>
+  </div>
+</div>
+
+<div id="toast" role="alert" aria-live="polite"></div>
+
+<script>
+const TEMPLATES=[
+  {icon:"ti-brand-linkedin",name:"Post LinkedIn",desc:"Contenu pro engageant",type:"social",tone:"professionnel",topic:"Partager une leçon apprise sur le leadership et l'innovation au travail",color:"#0A66C2"},
+  {icon:"ti-mail",name:"E-mail de prospection",desc:"Premier contact B2B",type:"email",tone:"professionnel",topic:"Présenter notre service de conseil en transformation digitale à un prospect",color:"#1D9E75"},
+  {icon:"ti-shopping-cart",name:"Fiche produit",desc:"Description persuasive",type:"description",tone:"persuasif",topic:"Décrire un sac à dos ergonomique pour voyageurs d'affaires",color:"#D85A30"},
+  {icon:"ti-article",name:"Article SEO",desc:"Blog optimisé",type:"article",tone:"informatif",topic:"Les 5 tendances IA qui transformeront le secteur de la santé en 2025",color:"#7F77DD"},
+  {icon:"ti-brand-instagram",name:"Légende Instagram",desc:"Accroche visuelle",type:"caption",tone:"décontracté",topic:"Photo d'un coucher de soleil lors d'un voyage au Maroc",color:"#E1306C"},
+  {icon:"ti-megaphone",name:"Slogan de marque",desc:"Tagline mémorable",type:"slogan",tone:"inspirant",topic:"Marque de vêtements éco-responsables pour sportifs urbains",color:"#BA7517"},
+  {icon:"ti-book",name:"Histoire courte",desc:"Récit créatif",type:"story",tone:"inspirant",topic:"Un entrepreneur qui transforme un échec en opportunité inattendue",color:"#378ADD"},
+  {icon:"ti-speakerphone",name:"Newsletter",desc:"Email hebdo engageant",type:"email",tone:"décontracté",topic:"Résumé hebdo des actualités tech pour une audience non-technique",color:"#639922"},
+];
+
+let history=[], saved=[], stats={count:0,words:0}, profile={}, selectedTpl=null;
+let currentResult='', currentType='', currentTone='professionnel', currentLength=2;
+
+function toast(msg){
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'),2200);
+}
+function showPage(p,btn){
+  document.querySelectorAll('.page').forEach(el=>el.classList.remove('active'));
+  document.querySelectorAll('.nav button').forEach(el=>el.classList.remove('active'));
+  document.getElementById('page-'+p).classList.add('active');
+  if(btn) btn.classList.add('active');
+  if(p==='saved') renderSaved();
+  if(p==='profile') renderProfile();
+  if(p==='templates') renderTemplates();
+}
+
+document.querySelectorAll('.tone-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.tone-btn').forEach(b=>b.classList.remove('selected'));
+    btn.classList.add('selected');
+    currentTone=btn.dataset.tone;
+  });
+});
+
+const lenLabels=['Court','Moyen','Long'];
+document.getElementById('gen-length').addEventListener('input',e=>{
+  currentLength=parseInt(e.target.value);
+  document.getElementById('length-label').textContent=lenLabels[currentLength-1];
+});
+
+function buildPrompt(){
+  const type=document.getElementById('gen-type').value;
+  const topic=document.getElementById('gen-topic').value.trim();
+  const keywords=document.getElementById('gen-keywords').value.trim();
+  const lengthStr=['court (100-150 mots)','moyen (200-300 mots)','long (400-500 mots)'][currentLength-1];
+  const p=profile;
+  let sys=`Tu es un expert en rédaction de contenus. Tu génères du contenu ${type} de qualité professionnelle en ${p.lang||'français'}.`;
+  if(p.name) sys+=` La marque/personne est : ${p.name}.`;
+  if(p.role) sys+=` Secteur : ${p.role}.`;
+  if(p.audience) sys+=` Audience cible : ${p.audience}.`;
+  if(p.style) sys+=` Style d'écriture : ${p.style}.`;
+  if(p.avoid) sys+=` Éviter : ${p.avoid}.`;
+  sys+=` Réponds UNIQUEMENT avec le contenu demandé, sans explication ni introduction. Pas de balises markdown sauf si pertinent.`;
+  let user=`Génère un contenu de type "${type}" sur le sujet suivant :\n${topic||'Sujet libre'}`;
+  if(keywords) user+=`\nMots-clés à inclure : ${keywords}`;
+  user+=`\nTon : ${currentTone}\nLongueur : ${lengthStr}`;
+  return {system:sys, user};
+}
+
+async function generateContent(){
+  const btn=document.getElementById('btn-gen');
+  const box=document.getElementById('result-box');
+  const topic=document.getElementById('gen-topic').value.trim();
+  if(!topic){toast('Veuillez entrer un sujet ou brief.');return;}
+  btn.disabled=true;
+  btn.innerHTML='<span class="spinner"></span> Génération en cours…';
+  box.innerHTML='<span style="color:var(--color-text-tertiary);font-size:13px">Génération en cours…</span>';
+  document.getElementById('btn-copy').style.display='none';
+  document.getElementById('btn-save').style.display='none';
+  document.getElementById('btn-regen').style.display='none';
+  document.getElementById('result-tags').style.display='none';
+
+  const {system, user}=buildPrompt();
+  const type=document.getElementById('gen-type').options[document.getElementById('gen-type').selectedIndex].text;
+  try{
+    const res=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        model:'claude-sonnet-4-20250514',
+        max_tokens:1000,
+        system,
+        messages:[{role:'user',content:user}]
+      })
+    });
+    const data=await res.json();
+    const text=data.content?.find(b=>b.type==='text')?.text||'Erreur de génération.';
+    currentResult=text;
+    currentType=type;
+    box.textContent=text;
+    const wc=text.trim().split(/\s+/).length;
+    stats.count++; stats.words+=wc;
+    updateStats();
+    history.unshift({type,tone:currentTone,preview:text.slice(0,80),full:text,ts:Date.now()});
+    if(history.length>10) history.pop();
+    renderHistory();
+    renderTags(text,type);
+    document.getElementById('btn-copy').style.display='';
+    document.getElementById('btn-save').style.display='';
+    document.getElementById('btn-regen').style.display='';
+  }catch(e){
+    box.textContent='Erreur : '+e.message;
+  }
+  btn.disabled=false;
+  btn.innerHTML='<i class="ti ti-sparkles" aria-hidden="true"></i> Générer le contenu';
+}
+
+function renderTags(text,type){
+  const wc=text.trim().split(/\s+/).length;
+  const rows=[
+    `<span class="tag tag-purple"><i class="ti ti-file-text" aria-hidden="true"></i> ${type}</span>`,
+    `<span class="tag tag-teal"><i class="ti ti-align-left" aria-hidden="true"></i> ${wc} mots</span>`,
+    `<span class="tag tag-amber"><i class="ti ti-mood-smile" aria-hidden="true"></i> ${currentTone}</span>`,
+    `<span class="tag tag-blue"><i class="ti ti-language" aria-hidden="true"></i> ${profile.lang||'Français'}</span>`,
+  ];
+  document.getElementById('tags-row').innerHTML=rows.join('');
+  document.getElementById('result-tags').style.display='block';
+}
+
+function updateStats(){
+  document.getElementById('stat-count').textContent=stats.count;
+  document.getElementById('stat-saved').textContent=saved.length;
+  document.getElementById('stat-words').textContent=stats.words;
+  const tones=history.map(h=>h.tone);
+  const fav=tones.length? tones.sort((a,b)=>tones.filter(t=>t===b).length-tones.filter(t=>t===a).length)[0] : '—';
+  document.getElementById('stat-fav').textContent=fav;
+}
+
+function renderHistory(){
+  const el=document.getElementById('history-list');
+  if(!history.length){el.innerHTML='<div class="empty-state"><i class="ti ti-clock" aria-hidden="true"></i>Aucune génération pour cette session.</div>';return;}
+  el.innerHTML=history.map((h,i)=>`
+    <div class="history-item">
+      <div class="history-type"><span class="tag tag-purple" style="margin:0">${h.type}</span> · <span style="color:var(--color-text-tertiary)">${h.tone}</span></div>
+      <div class="history-preview">${h.preview}…</div>
+      <div class="history-actions">
+        <button class="btn-sm" onclick="restoreHistory(${i})"><i class="ti ti-eye" aria-hidden="true"></i> Voir</button>
+        <button class="btn-sm" onclick="saveFromHistory(${i})"><i class="ti ti-bookmark" aria-hidden="true"></i> Garder</button>
+      </div>
+    </div>`).join('');
+}
+
+function restoreHistory(i){
+  currentResult=history[i].full;
+  document.getElementById('result-box').textContent=history[i].full;
+  document.getElementById('btn-copy').style.display='';
+  document.getElementById('btn-save').style.display='';
+  document.getElementById('btn-regen').style.display='';
+  showPage('generate',document.querySelector('.nav button'));
+}
+
+function saveFromHistory(i){
+  saveItem(history[i].full,history[i].type,history[i].tone);
+}
+
+function copyResult(){
+  if(!currentResult){toast('Rien à copier.');return;}
+  navigator.clipboard.writeText(currentResult).then(()=>toast('Contenu copié !')).catch(()=>{
+    const ta=document.createElement('textarea');
+    ta.value=currentResult;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();
+    toast('Contenu copié !');
+  });
+}
+
+function saveResult(){
+  if(!currentResult){toast('Rien à enregistrer.');return;}
+  saveItem(currentResult,currentType,currentTone);
+}
+
+function saveItem(text,type,tone){
+  saved.unshift({text,type,tone,ts:Date.now()});
+  updateStats();
+  toast('Contenu enregistré !');
+}
+
+function renderSaved(){
+  const q=(document.getElementById('search-saved')?.value||'').toLowerCase();
+  const el=document.getElementById('saved-list');
+  const filtered=saved.filter(s=>s.text.toLowerCase().includes(q)||s.type.toLowerCase().includes(q));
+  if(!filtered.length){el.innerHTML='<div class="empty-state"><i class="ti ti-bookmark" aria-hidden="true"></i>'+(saved.length?'Aucun résultat.':'Aucun contenu enregistré.')+'</div>';return;}
+  el.innerHTML=filtered.map((s,i)=>`
+    <div class="saved-item">
+      <div class="saved-content">
+        <div style="display:flex;gap:4px;margin-bottom:4px"><span class="tag tag-purple">${s.type}</span><span class="tag tag-amber">${s.tone}</span></div>
+        <div class="saved-text">${s.text}</div>
+        <div class="saved-meta">${new Date(s.ts).toLocaleString('fr-FR')}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:5px;flex-shrink:0">
+        <button class="btn-sm" onclick="copySaved(${i})"><i class="ti ti-copy" aria-hidden="true"></i></button>
+        <button class="btn-sm" onclick="deleteSaved(${i})"><i class="ti ti-trash" aria-hidden="true"></i></button>
+      </div>
+    </div>`).join('');
+}
+
+function copySaved(i){
+  const text=saved[i].text;
+  navigator.clipboard.writeText(text).then(()=>toast('Copié !')).catch(()=>toast('Copié !'));
+}
+
+function deleteSaved(i){saved.splice(i,1);updateStats();renderSaved();toast('Supprimé.');}
+function clearSaved(){if(!saved.length){toast('Déjà vide.');return;}saved=[];updateStats();renderSaved();toast('Liste effacée.');}
+
+function saveProfile(){
+  profile={
+    name:document.getElementById('p-name').value.trim(),
+    role:document.getElementById('p-role').value.trim(),
+    audience:document.getElementById('p-audience').value.trim(),
+    lang:document.getElementById('p-lang').value,
+    style:document.getElementById('p-style').value.trim(),
+    avoid:document.getElementById('p-avoid').value.trim(),
+  };
+  toast('Profil enregistré ! Les prochaines générations seront personnalisées.');
+}
+
+function renderProfile(){
+  const toneCount={};
+  history.forEach(h=>{toneCount[h.tone]=(toneCount[h.tone]||0)+1;});
+  const sorted=Object.entries(toneCount).sort((a,b)=>b[1]-a[1]);
+  const classes=['tag-purple','tag-teal','tag-coral','tag-amber','tag-blue'];
+  const el=document.getElementById('fav-tones');
+  if(!sorted.length){el.innerHTML='<span style="color:var(--color-text-tertiary);font-size:12px">Aucune donnée encore.</span>';return;}
+  el.innerHTML=sorted.map(([t,c],i)=>`<span class="tag ${classes[i%classes.length]}">${t} <strong>${c}</strong></span>`).join('');
+}
+
+function renderTemplates(){
+  document.getElementById('tpl-grid').innerHTML=TEMPLATES.map((t,i)=>`
+    <button class="tpl-card" onclick="previewTpl(${i})">
+      <i class="ti ${t.icon}" style="color:${t.color}" aria-hidden="true"></i>
+      <div class="tpl-name">${t.name}</div>
+      <div class="tpl-desc">${t.desc}</div>
+    </button>`).join('');
+}
+
+function previewTpl(i){
+  selectedTpl=i;
+  const t=TEMPLATES[i];
+  document.getElementById('tpl-preview').textContent=`Type : ${t.name}\nTon : ${t.tone}\nSujet : ${t.topic}`;
+  document.getElementById('tpl-preview-card').style.display='block';
+  document.getElementById('tpl-preview-card').scrollIntoView({behavior:'smooth'});
+}
+
+function closeTpl(){document.getElementById('tpl-preview-card').style.display='none';}
+
+function useTpl(){
+  if(selectedTpl===null) return;
+  const t=TEMPLATES[selectedTpl];
+  document.getElementById('gen-type').value=t.type;
+  document.getElementById('gen-topic').value=t.topic;
+  document.querySelectorAll('.tone-btn').forEach(b=>{
+    b.classList.toggle('selected',b.dataset.tone===t.tone);
+  });
+  currentTone=t.tone;
+  showPage('generate',document.querySelector('.nav button'));
+  toast('Modèle appliqué. Cliquez sur Générer !');
+}
+
+renderTemplates();
+
+/* ──────────────────────────────────────────────
+   MOTEUR DE RECOMMANDATION (porté depuis le notebook)
+   Inspiré des méthodes :
+   - RecommendationEngine._create_user_interest_vectors()
+   - RecommendationEngine.get_personalized_suggestions()
+   - RecommendationEngine.find_similar_users()  [cosinus & euclidien]
+   - RecommendationEngine.get_recommendations_from_similar_users()
+────────────────────────────────────────────── */
+
+const INTERESTS_CATEGORIES = [
+  'Fiction','Science-Fiction','Fantasy','Romance','Thriller',
+  'Biographie','Histoire','Science','Technologie','Cuisine',
+  'Voyage','Développement Personnel','Poésie','Art','Jeunesse'
+];
+
+// ── Génère la population synthétique (100 utilisateurs) ──
+function generateSyntheticUsers(n=100){
+  const genders=['Male','Female','Other'];
+  const locations=['Paris','Lyon','Marseille','Toulouse','Nice'];
+  const activityTypes=['view','like','share','purchase','skip'];
+  const users=[];
+  for(let i=0;i<n;i++){
+    const numInterests=1+Math.floor(Math.random()*5);
+    const shuffled=[...INTERESTS_CATEGORIES].sort(()=>Math.random()-0.5);
+    users.push({
+      id:`User_${i+1}`,
+      age:18+Math.floor(Math.random()*47),
+      gender:genders[Math.floor(Math.random()*3)],
+      location:locations[Math.floor(Math.random()*5)],
+      interests:shuffled.slice(0,numInterests)
+    });
+  }
+  // Logs d'activité synthétiques
+  const logs=[];
+  for(let i=0;i<1000;i++){
+    const u=users[Math.floor(Math.random()*n)];
+    const rnd=Math.random();
+    let act='view';
+    if(rnd>0.9) act='skip';
+    else if(rnd>0.8) act='purchase';
+    else if(rnd>0.65) act='share';
+    else if(rnd>0.4) act='like';
+    logs.push({userId:u.id, activity:act, category:INTERESTS_CATEGORIES[Math.floor(Math.random()*INTERESTS_CATEGORIES.length)]});
+  }
+  return {users, logs};
+}
+
+// ── Crée les vecteurs d'intérêt binaires (notebook: _create_user_interest_vectors) ──
+function createInterestVectors(users){
+  const vectors={};
+  users.forEach(u=>{
+    vectors[u.id]=INTERESTS_CATEGORIES.map(c=>u.interests.includes(c)?1:0);
+  });
+  return vectors;
+}
+
+// ── Similarité cosinus (notebook: find_similar_users metric='cosine') ──
+function cosineSimilarity(a,b){
+  let dot=0,normA=0,normB=0;
+  for(let i=0;i<a.length;i++){dot+=a[i]*b[i];normA+=a[i]*a[i];normB+=b[i]*b[i];}
+  const denom=Math.sqrt(normA)*Math.sqrt(normB);
+  return denom===0?0:dot/denom;
+}
+
+// ── Distance euclidienne (notebook: find_similar_users metric='euclidean') ──
+function euclideanDistance(a,b){
+  let sum=0;
+  for(let i=0;i<a.length;i++) sum+=(a[i]-b[i])**2;
+  return Math.sqrt(sum);
+}
+
+// ── Trouver utilisateurs similaires (notebook: find_similar_users) ──
+function findSimilarUsers(targetVector, vectors, targetId, metric='cosine', topN=5){
+  const scores=Object.entries(vectors)
+    .filter(([id])=>id!==targetId)
+    .map(([id,vec])=>{
+      const score = metric==='cosine'
+        ? cosineSimilarity(targetVector, vec)
+        : -euclideanDistance(targetVector, vec); // négatif pour trier "plus proche = meilleur"
+      return {id, score};
+    })
+    .sort((a,b)=>b.score-a.score);
+  return scores.slice(0,topN);
+}
+
+// ── Catégories populaires (notebook: _get_popular_categories) ──
+function getPopularCategories(logs, topN=5){
+  const counts={};
+  logs.forEach(l=>{counts[l.category]=(counts[l.category]||0)+1;});
+  return Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,topN).map(e=>e[0]);
+}
+
+// ── Suggestions personnalisées (notebook: get_personalized_suggestions) ──
+function getPersonalizedSuggestions(userProfile, logs, popularCategories, numSuggestions=5){
+  const suggestions=new Set();
+  // 1. Intérêts directs
+  userProfile.interests.forEach(c=>suggestions.add(`Livre de ${c}`));
+  // 2. Activités récentes (like / purchase)
+  const userLogs=logs.filter(l=>l.userId===userProfile.id);
+  ['purchase','like'].forEach(act=>{
+    const cats=userLogs.filter(l=>l.activity===act).map(l=>l.category);
+    const freq={};
+    cats.forEach(c=>{freq[c]=(freq[c]||0)+1;});
+    Object.keys(freq).forEach(c=>suggestions.add(`Livre similaire à vos ${act}s en ${c}`));
+  });
+  // 3. Populaires si pas assez
+  if(suggestions.size<numSuggestions){
+    popularCategories.forEach(c=>suggestions.add(`Livre populaire de ${c}`));
+  }
+  // 4. Logique conditionnelle âge (notebook: if user_age >= 50)
+  if(userProfile.age>=50 && !userProfile.interests.includes('Biographie') && !userProfile.interests.includes('Histoire')){
+    suggestions.add('✨ Suggestion spéciale : Découvrez une biographie fascinante ou un livre d\'histoire');
+  }
+  return [...suggestions].slice(0,numSuggestions);
+}
+
+// ── Recommandations collaboratives (notebook: get_recommendations_from_similar_users) ──
+function getRecommendationsFromSimilarUsers(userProfile, users, vectors, targetVector, logs, popularCategories, numSuggestions=5, metric='cosine'){
+  const similar=findSimilarUsers(targetVector, vectors, userProfile.id||'current', metric, 5);
+  if(!similar.length) return getPersonalizedSuggestions(userProfile, logs, popularCategories, numSuggestions);
+
+  const knownInterests=new Set(userProfile.interests);
+  const newInterests=new Set();
+  similar.forEach(({id})=>{
+    const u=users.find(u=>u.id===id);
+    if(u) u.interests.forEach(i=>{if(!knownInterests.has(i)) newInterests.add(i);});
+  });
+
+  if(!newInterests.size) return getPersonalizedSuggestions(userProfile, logs, popularCategories, numSuggestions);
+
+  const suggestions=[...newInterests].slice(0,numSuggestions).map(i=>`Basé sur profils similaires : Livre de ${i}`);
+  if(suggestions.length<numSuggestions){
+    const extra=getPersonalizedSuggestions(userProfile, logs, popularCategories, numSuggestions-suggestions.length);
+    suggestions.push(...extra);
+  }
+  return suggestions.slice(0,numSuggestions);
+}
+
+// ── Initialise les boutons d'intérêts ──
+function initInterestsGrid(){
+  const grid=document.getElementById('rec-interests-grid');
+  grid.innerHTML=INTERESTS_CATEGORIES.map(c=>`<button class="tone-btn" data-interest="${c}" onclick="toggleInterest(this)">${c}</button>`).join('');
+}
+
+function toggleInterest(btn){btn.classList.toggle('selected');}
+
+function getSelectedInterests(){
+  return [...document.querySelectorAll('#rec-interests-grid .tone-btn.selected')].map(b=>b.dataset.interest);
+}
+
+// ── Chart.js : distribution des intérêts du profil ──
+let recChart=null;
+function drawInterestChart(userInterests){
+  const ctx=document.getElementById('rec-chart').getContext('2d');
+  if(recChart) recChart.destroy();
+  const data=INTERESTS_CATEGORIES.map(c=>userInterests.includes(c)?1:0);
+  recChart=new Chart(ctx,{
+    type:'bar',
+    data:{
+      labels:INTERESTS_CATEGORIES,
+      datasets:[{label:'Vos intérêts',data,backgroundColor:'rgba(99,102,241,0.7)',borderRadius:4}]
+    },
+    options:{
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{ticks:{font:{size:10},maxRotation:45}},
+        y:{display:false,max:1.5}
+      }
+    }
+  });
+}
+
+// ── Point d'entrée principal ──
+function generateRecommendations(){
+  const age=parseInt(document.getElementById('rec-age').value)||30;
+  const gender=document.getElementById('rec-gender').value;
+  const metric=document.getElementById('rec-metric').value;
+  const numSugg=parseInt(document.getElementById('rec-num').value)||5;
+  const interests=getSelectedInterests();
+
+  if(!interests.length){toast('Sélectionnez au moins un centre d\'intérêt.');return;}
+
+  // Génère la population synthétique
+  const {users, logs}=generateSyntheticUsers(100);
+
+  // Profil courant (non enregistré dans la population, donc on lui crée un ID temporaire)
+  const currentUser={id:'current_user', age, gender, interests};
+
+  // Vecteurs d'intérêts
+  const vectors=createInterestVectors(users);
+  const currentVector=INTERESTS_CATEGORIES.map(c=>interests.includes(c)?1:0);
+  vectors['current_user']=currentVector;
+
+  const popularCategories=getPopularCategories(logs,5);
+
+  // Suggestions personnalisées
+  const personal=getPersonalizedSuggestions(currentUser, logs, popularCategories, numSugg);
+
+  // Recommandations collaboratives
+  const collaborative=getRecommendationsFromSimilarUsers(currentUser, users, vectors, currentVector, logs, popularCategories, numSugg, metric);
+
+  // Utilisateurs similaires (pour affichage)
+  const similarUsers=findSimilarUsers(currentVector, vectors, 'current_user', metric, 3);
+
+  // Rendu
+  renderRecommendations(personal, collaborative, similarUsers, interests, users);
+}
+
+function renderRecommendations(personal, collaborative, similarUsers, interests, allUsers){
+  // Card personnalisée
+  const pCard=document.getElementById('rec-personal-card');
+  const pList=document.getElementById('rec-personal-list');
+  pList.innerHTML=personal.map(s=>`<div class="history-item" style="padding:8px 12px">
+    <div style="font-size:13px;color:var(--color-text-primary)"><i class="ti ti-book" style="margin-right:6px;color:#7F77DD"></i>${s}</div>
+  </div>`).join('');
+  pCard.style.display='';
+
+  // Card collaborative
+  const sCard=document.getElementById('rec-similar-card');
+  const sList=document.getElementById('rec-similar-list');
+  sList.innerHTML=collaborative.map(s=>`<div class="history-item" style="padding:8px 12px">
+    <div style="font-size:13px;color:var(--color-text-primary)"><i class="ti ti-users" style="margin-right:6px;color:#1D9E75"></i>${s}</div>
+  </div>`).join('');
+  // Utilisateurs similaires
+  const suEl=document.getElementById('rec-similar-users');
+  suEl.innerHTML=`<div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:6px">Top profils similaires :</div>`
+    +similarUsers.map(u=>{
+      const found=allUsers.find(a=>a.id===u.id);
+      const score=(u.score*100).toFixed(0);
+      return `<span class="tag tag-teal" style="margin:2px">${u.id} · ${found?found.interests.slice(0,2).join(', '):'—'} · ${score}%</span>`;
+    }).join('');
+  sCard.style.display='';
+
+  // Stats + chart
+  const statsCard=document.getElementById('rec-stats-card');
+  document.getElementById('rec-stats-content').innerHTML=`
+    <div class="badge-row">
+      <span class="tag tag-purple"><i class="ti ti-user" aria-hidden="true"></i> ${interests.length} intérêt${interests.length>1?'s':''}</span>
+      ${interests.map(i=>`<span class="tag tag-blue">${i}</span>`).join('')}
+    </div>`;
+  drawInterestChart(interests);
+  statsCard.style.display='';
+  toast('Recommandations générées !');
+  // Charger le diagramme de distribution des intérêts par défaut
+  showDiagram('interests', document.querySelector('[data-diagram="interests"]'));
+}
+
+// ── Diagrammes du notebook (via Flask /api/charts/) ──
+const FLASK_BASE = 'http://localhost:5000';
+const DIAGRAM_URLS = {
+  'interests':   `${FLASK_BASE}/api/charts/interests.png`,
+  'activity-hour': `${FLASK_BASE}/api/charts/activity-by-hour.png`,
+  'heatmap':     `${FLASK_BASE}/api/charts/activity-heatmap.png`,
+  'seg-age':     `${FLASK_BASE}/api/charts/recommendations-by-segment.png?segment=age`,
+  'seg-gender':  `${FLASK_BASE}/api/charts/recommendations-by-segment.png?segment=gender`,
+};
+
+let currentDiagram = null;
+
+function showDiagram(key, btn) {
+  // Mise à jour des onglets actifs
+  document.querySelectorAll('#diagram-tabs .tone-btn').forEach(b => b.classList.remove('selected'));
+  if (btn) btn.classList.add('selected');
+
+  if (currentDiagram === key) return;
+  currentDiagram = key;
+
+  const img        = document.getElementById('diagram-img');
+  const loader     = document.getElementById('diagram-loader');
+  const errEl      = document.getElementById('diagram-error');
+  const placeholder= document.getElementById('diagram-placeholder');
+
+  img.style.display        = 'none';
+  errEl.style.display      = 'none';
+  placeholder.style.display= 'none';
+  loader.style.display     = 'block';
+
+  const url = DIAGRAM_URLS[key];
+  const tmp = new Image();
+  tmp.onload = () => {
+    loader.style.display = 'none';
+    img.src = url;
+    img.style.display = 'block';
+  };
+  tmp.onerror = () => {
+    loader.style.display  = 'none';
+    errEl.style.display   = 'block';
+  };
+  // Ajouter un cache-buster pour forcer le rechargement
+  tmp.src = url + (url.includes('?') ? '&' : '?') + '_t=' + Date.now();
+}
+
+// Init
+initInterestsGrid();
+</script>
+<style>
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
